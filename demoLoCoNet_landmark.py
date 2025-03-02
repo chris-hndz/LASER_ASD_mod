@@ -390,10 +390,23 @@ def visualization(args, pred, tracks):
     for tidx, track in enumerate(tracks):
         score = pred[tidx]
         for fidx, frame in enumerate(track['frame'].tolist()):
-            # s = score[max(fidx - 2, 0): min(fidx + 3, len(score) - 1)] # average smoothing
-            # s = numpy.mean(s)
+            # Obtener un único elemento del tensor score para este frame
+            # Si score es un tensor de [256] elementos, necesitamos indexarlo correctamente
+            if isinstance(score, torch.Tensor):
+                if score.numel() > 1:  # Si tiene múltiples elementos
+                    # Asegúrate de que fidx está en el rango válido
+                    if fidx < score.size(0):
+                        score_value = score[fidx].item()
+                    else:
+                        # Si fidx está fuera de rango, usa el último valor disponible
+                        score_value = score[-1].item()
+                else:
+                    score_value = score.item()
+            else:
+                score_value = score
+                
             faces[frame].append(
-                {'track': tidx, 'score': score[fidx], 'bbox': track['bbox'][fidx]})
+                {'track': tidx, 'score': score_value, 'bbox': track['bbox'][fidx]})
 
     # begin writing result video
     firstImage = cv2.imread(flist[0])
@@ -407,6 +420,7 @@ def visualization(args, pred, tracks):
     for fidx, frame in tqdm.tqdm(enumerate(flist), total=len(flist)):
         image = cv2.imread(frame)
         for face in faces[fidx]:
+            # Ya no es necesario convertir 'score' aquí, pues ya es un valor escalar
             clr = colorDict[int((face['score'] >= 0.0))]
             if face['score'] >= 0:
                 l.append(fidx)
