@@ -1,0 +1,27 @@
+name: laser_asd
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - pytorch
+  - torchvision
+  - torchaudio
+  - cudatoolkit=11.8
+  - numpy
+  - pandas
+  - matplotlib
+  - scipy
+  - opencv
+  - tqdm
+  - pyyaml
+  - pip
+  - pip:
+      - mediapipe
+      - pydub
+      - python-speech-features
+      - soundfile
+      - scenedetect
+      - easydict
+      - wandb

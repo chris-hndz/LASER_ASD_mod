@@ -54,6 +54,8 @@ def args_create():
                         default="demo_6_our",   help='Demo video name')
     parser.add_argument('--videoFolder',           type=str,
                         default="demo",  help='Path for inputs, tmps and outputs')
+    parser.add_argument('--outputFolder',          type=str,
+                        default="",     help='Path for outputs (if empty, uses videoFolder)')
     parser.add_argument('--pretrainModel',         type=str,
                         default="loconet_ava_best.model",   help='Path for the pretrained LoCoNet model')
 
@@ -81,10 +83,15 @@ def args_create():
         args.videoFolder, args.videoName + '.*'))[0]
     args.audioPath = glob.glob(os.path.join(
         args.videoFolder, args.audioName + '.*'))[0]
-    args.savePath = os.path.join(args.videoFolder, args.videoName)
+    
+    # Usar outputFolder si está definido, de lo contrario usar videoFolder
+    if args.outputFolder:
+        args.savePath = os.path.join(args.outputFolder, args.videoName)
+    else:
+        args.savePath = os.path.join(args.videoFolder, args.videoName)
 
     return args
-
+    
 
 def scene_detect(args):
     # CPU: Scene detection, output is the list of each shot's time duration
@@ -467,7 +474,9 @@ def main():
 
     # setup configuration
     default_config = {'cfg': './configs/multi.yaml'}
-    cfg = bootstrap(default_cfg=default_config, print_cfg=True)
+    # Evitar usar bootstrap para configuración simple
+    # cfg = bootstrap(default_cfg=default_config, print_cfg=True)
+    cfg = {'cfg': './configs/multi.yaml'}  # Configuración mínima
 
     warnings.filterwarnings("ignore")
 
