@@ -475,12 +475,17 @@ def main():
     # setup configuration
     default_config = {'cfg': './configs/multi.yaml'}
     # Evitar usar bootstrap para configuración simple
-    # cfg = bootstrap(default_cfg=default_config, print_cfg=True)
-    cfg = type('', (), {})()  # Crear un objeto vacío
-    cfg.MODEL = type('', (), {})()  # Crear el atributo MODEL
-    cfg.MODEL.NUM_SPEAKERS = 3  # Establecer NUM_SPEAKERS
-    cfg.MODEL.ADJUST_ATTENTION = 0  # Establecer ADJUST_ATTENTION
-    cfg.MODEL.AV_layers = 3  # Establecer AV_layers
+    # cfg = bootstrap(default_cfg=default_config, print_cfg=True)   
+    # Crear un objeto cfg con estructura de diccionario anidado
+    cfg = type('', (), {})()
+    cfg.MODEL = type('', (), {})()
+    cfg.MODEL.NUM_SPEAKERS = 3
+    cfg.MODEL.ADJUST_ATTENTION = 0
+    cfg.MODEL.AV_layers = 3
+    # Hacer que cfg sea accesible como diccionario también
+    cfg_dict = {'MODEL': {'NUM_SPEAKERS': 3, 'ADJUST_ATTENTION': 0, 'AV_layers': 3}}
+    # Agregar método especial para permitir acceso como diccionario
+    cfg.__getitem__ = lambda self, key: cfg_dict[key]
 
     warnings.filterwarnings("ignore")
 
