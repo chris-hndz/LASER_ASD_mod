@@ -353,7 +353,7 @@ def inference(args, cfg, visual_feature, audio_feature, lenTracks):
     # inicializar modelo
     # Usa el acceso por atributos en lugar de diccionario
     model = loconet(cfg, n_channel=4, layer=1)
-    model.loadParameters('')
+    model.loadParameters(args.pretrainModel)
     model = model.to(device='cuda')
     model.eval()
 
