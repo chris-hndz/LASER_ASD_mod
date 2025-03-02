@@ -31,7 +31,7 @@ class locoencoder(nn.Module):
 
         # Audio-visual Self Attention
 
-        num_layers = self.cfg['MODEL']['AV_layers'] if 'MODEL' in self.cfg and 'AV_layers' in self.cfg['MODEL'] else 3
+        num_layers = self.cfg.MODEL.AV_layers if hasattr(self.cfg, 'MODEL') and hasattr(self.cfg.MODEL, 'AV_layers') else 3
         layers = nn.ModuleList()
         for i in range(num_layers):
             layers.append(ConvLayer(cfg))
