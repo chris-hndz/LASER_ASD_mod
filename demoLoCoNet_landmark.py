@@ -476,7 +476,11 @@ def main():
     default_config = {'cfg': './configs/multi.yaml'}
     # Evitar usar bootstrap para configuración simple
     # cfg = bootstrap(default_cfg=default_config, print_cfg=True)
-    cfg = {'cfg': './configs/multi.yaml'}  # Configuración mínima
+    cfg = type('', (), {})()  # Crear un objeto vacío
+    cfg.MODEL = type('', (), {})()  # Crear el atributo MODEL
+    cfg.MODEL.NUM_SPEAKERS = 3  # Establecer NUM_SPEAKERS
+    cfg.MODEL.ADJUST_ATTENTION = 0  # Establecer ADJUST_ATTENTION
+    cfg.MODEL.AV_layers = 3  # Establecer AV_layers
 
     warnings.filterwarnings("ignore")
 
