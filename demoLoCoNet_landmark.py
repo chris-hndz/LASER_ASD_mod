@@ -360,23 +360,29 @@ def inference(args, cfg, visual_feature, audio_feature, lenTracks):
     with torch.no_grad():
         result = [None for i in range(lenTracks)]
 
-        # TODO: make a forward pass to make prediction
+        # Hacer un forward pass para obtener predicciones
         for i in tqdm.tqdm(range(lenTracks)):
             visual = visual_feature[i]
 
-            # get visual feature with size
+            # obtener características visuales
             visualFeature = visual.to(dtype=torch.float, device='cuda')
             b, s, t = visualFeature.shape[0], visualFeature.shape[1], visualFeature.shape[2]
 
             landmark = torch.full((b,s,t,82,2), 0.0, device='cuda')
 
-            # get audio feature
+            # obtener características de audio
             audioFeature = audio_feature[i].to(dtype=torch.float, device='cuda')
 
-            # run frontend part of the model
+            # ejecutar parte frontal del modelo
             predScore = model.model.forward_evaluation(audioFeature, visualFeature, landmark, None, None, False)
+            
+            # Asegurarse de que predScore tenga la forma correcta - flatten si es necesario
+            if isinstance(predScore, torch.Tensor) and predScore.dim() > 1:
+                # Si tiene dimensiones extra (por ejemplo [256, 1]), aplanar a [256]
+                predScore = predScore.squeeze()
+                
             result[i] = predScore
-            print(sum(predScore < 0))
+            print(f"Track {i}: {(predScore < 0).sum().item()} frames negative")
 
     return result
 
@@ -390,19 +396,25 @@ def visualization(args, pred, tracks):
     for tidx, track in enumerate(tracks):
         score = pred[tidx]
         for fidx, frame in enumerate(track['frame'].tolist()):
-            # Obtener un único elemento del tensor score para este frame
-            # Si score es un tensor de [256] elementos, necesitamos indexarlo correctamente
+            # Manejo más robusto de diferentes formas de tensor de score
             if isinstance(score, torch.Tensor):
-                if score.numel() > 1:  # Si tiene múltiples elementos
-                    # Asegúrate de que fidx está en el rango válido
+                # Si score es un tensor multi-dimensional
+                if score.dim() > 1:
+                    # Si tiene forma [256, 1] o similar
+                    if fidx < score.size(0):
+                        score_value = score[fidx][0].item() if score[fidx].numel() > 1 else score[fidx].item()
+                    else:
+                        # Usar el último valor disponible si fidx está fuera de rango
+                        score_value = score[-1][0].item() if score[-1].numel() > 1 else score[-1].item()
+                else:
+                    # Si es un tensor 1D, verificar si podemos indexar directamente
                     if fidx < score.size(0):
                         score_value = score[fidx].item()
                     else:
-                        # Si fidx está fuera de rango, usa el último valor disponible
+                        # Si fidx está fuera de rango, usa el último valor
                         score_value = score[-1].item()
-                else:
-                    score_value = score.item()
             else:
+                # Si no es un tensor, usarlo directamente
                 score_value = score
                 
             faces[frame].append(
