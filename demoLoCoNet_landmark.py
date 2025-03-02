@@ -483,6 +483,7 @@ def main():
     cfg.MODEL.NUM_SPEAKERS = 3
     cfg.MODEL.ADJUST_ATTENTION = 0
     cfg.MODEL.AV_layers = 3
+    cfg.evalDataType = 'evl'  # o el valor que sea apropiado para tu caso
     # Hacer que cfg sea accesible como diccionario también
     cfg_dict = {'MODEL': {'NUM_SPEAKERS': 3, 'ADJUST_ATTENTION': 0, 'AV_layers': 3}}
     # Agregar método especial para permitir acceso como diccionario
