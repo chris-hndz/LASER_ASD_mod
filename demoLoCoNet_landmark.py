@@ -40,6 +40,8 @@ import numpy as np
 from utils.tools import *
 from dlhammer.dlhammer import bootstrap
 
+from save_speaker_annotations import save_speaker_annotations
+
 warnings.filterwarnings("ignore")
 
 
@@ -391,69 +393,96 @@ def visualization(args, pred, tracks):
     # get list of frames
     flist = glob.glob(os.path.join(args.pyframesPath, '*.jpg'))
     flist.sort()
-
+    
+    print(f"Total frames: {len(flist)}")
+    print(f"Total tracks: {len(tracks)}")
+    print(f"Total predictions: {len(pred)}")
+    
+    # Asegurarse de que el directorio de visualización existe
+    os.makedirs(args.pyframesViz, exist_ok=True)
+    
     faces = [[] for i in range(len(flist))]
     for tidx, track in enumerate(tracks):
+        print(f"Processing track {tidx}, {len(track['frame'])} frames")
         score = pred[tidx]
+        print(f"Score type: {type(score)}, shape: {score.shape if isinstance(score, torch.Tensor) else 'not tensor'}")
+        
         for fidx, frame in enumerate(track['frame'].tolist()):
-            # Manejo más robusto de diferentes formas de tensor de score
-            if isinstance(score, torch.Tensor):
-                # Si score es un tensor multi-dimensional
-                if score.dim() > 1:
-                    # Si tiene forma [256, 1] o similar
-                    if fidx < score.size(0):
-                        score_value = score[fidx][0].item() if score[fidx].numel() > 1 else score[fidx].item()
+            try:
+                # Obtener un valor escalar para score
+                if isinstance(score, torch.Tensor):
+                    if score.dim() > 1:
+                        if fidx < score.size(0):
+                            score_value = score[fidx][0].item() if score[fidx].numel() > 1 else score[fidx].item()
+                        else:
+                            score_value = score[-1][0].item() if score[-1].numel() > 1 else score[-1].item()
                     else:
-                        # Usar el último valor disponible si fidx está fuera de rango
-                        score_value = score[-1][0].item() if score[-1].numel() > 1 else score[-1].item()
+                        if fidx < score.size(0):
+                            score_value = score[fidx].item()
+                        else:
+                            score_value = score[-1].item()
                 else:
-                    # Si es un tensor 1D, verificar si podemos indexar directamente
-                    if fidx < score.size(0):
-                        score_value = score[fidx].item()
-                    else:
-                        # Si fidx está fuera de rango, usa el último valor
-                        score_value = score[-1].item()
-            else:
-                # Si no es un tensor, usarlo directamente
-                score_value = score
+                    score_value = score
                 
-            faces[frame].append(
-                {'track': tidx, 'score': score_value, 'bbox': track['bbox'][fidx]})
-
+                faces[frame].append({'track': tidx, 'score': score_value, 'bbox': track['bbox'][fidx]})
+            except Exception as e:
+                print(f"Error processing frame {frame} of track {tidx}: {e}")
+    
     # begin writing result video
     firstImage = cv2.imread(flist[0])
     fw = firstImage.shape[1]
     fh = firstImage.shape[0]
-    vOut = cv2.VideoWriter(os.path.join(
-        args.pyaviPath, 'video_only.avi'), cv2.VideoWriter_fourcc(*'XVID'), 25, (fw, fh))
-
+    vOut = cv2.VideoWriter(os.path.join(args.pyaviPath, 'video_only.avi'), 
+                           cv2.VideoWriter_fourcc(*'XVID'), 25, (fw, fh))
+    
     colorDict = {0: 0, 1: 255}
-    l = []
-    for fidx, frame in tqdm.tqdm(enumerate(flist), total=len(flist)):
-        image = cv2.imread(frame)
-        for face in faces[fidx]:
-            # Ya no es necesario convertir 'score' aquí, pues ya es un valor escalar
-            clr = colorDict[int((face['score'] >= 0.0))]
-            if face['score'] >= 0:
-                l.append(fidx)
-            txt = round(face['score'], 2)
-            p1 = (int(face['bbox'][0]), int(face['bbox'][1]))
-            p2 = (int(face['bbox'][2]), int(face['bbox'][3]))
-            cv2.rectangle(image, p1, p2, (0, clr, 255-clr), 3)
-            cv2.imwrite(os.path.join(args.pyframesViz, frame.split('/')[-1]), image)
-            cv2.putText(image, '%s' % (txt), p1,
-                        cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, clr, 255-clr), 2)
-        vOut.write(image)
-    l = list(set(l))
-
+    frames_with_faces = 0
+    
+    for fidx, frame_path in tqdm.tqdm(enumerate(flist), total=len(flist)):
+        try:
+            image = cv2.imread(frame_path)
+            if image is None:
+                print(f"Could not read image {frame_path}")
+                continue
+                
+            if fidx >= len(faces):
+                print(f"Frame index {fidx} out of range for faces list (length {len(faces)})")
+                continue
+                
+            if faces[fidx]:
+                frames_with_faces += 1
+                
+            for face in faces[fidx]:
+                clr = colorDict[int((face['score'] >= 0.0))]
+                txt = round(face['score'], 2)
+                p1 = (int(face['bbox'][0]), int(face['bbox'][1]))
+                p2 = (int(face['bbox'][2]), int(face['bbox'][3]))
+                cv2.rectangle(image, p1, p2, (0, clr, 255-clr), 3)
+                cv2.putText(image, '%s' % (txt), p1, cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, clr, 255-clr), 2)
+                
+            # Guardar el frame procesado
+            save_path = os.path.join(args.pyframesViz, os.path.basename(frame_path))
+            cv2.imwrite(save_path, image)
+            
+            vOut.write(image)
+        except Exception as e:
+            print(f"Error processing frame {fidx}: {e}")
+    
+    print(f"Processed {frames_with_faces} frames with faces out of {len(flist)} total frames")
     vOut.release()
+    
+    # Generar video con audio
     command = ("ffmpeg -y -i %s -i %s -threads %d -c:v copy -c:a copy %s -loglevel panic" %
-               (os.path.join(args.pyaviPath, 'video_only.avi'), os.path.join(args.pyaviPath, 'audio.wav'),
-                args.nDataLoaderThread, os.path.join(args.pyaviPath, 'video_out.avi')))
-    output = subprocess.call(command, shell=True, stdout=None)
-
+              (os.path.join(args.pyaviPath, 'video_only.avi'), os.path.join(args.pyaviPath, 'audio.wav'),
+               args.nDataLoaderThread, os.path.join(args.pyaviPath, 'video_out.avi')))
+    try:
+        output = subprocess.call(command, shell=True, stdout=None)
+        print(f"Generated output video with result: {output}")
+    except Exception as e:
+        print(f"Error generating output video: {e}")
+        
+        
 # Main function
-
 
 def main():
     # This preprocesstion is modified based on this [repository](https://github.com/joonson/syncnet_python).
@@ -605,6 +634,9 @@ def main():
                        audio_feature, lenTracks=len(allTracks))
 
     visualization(args, result, allTracks)
+    
+    # Añadir esta línea:
+    save_speaker_annotations(args, allTracks, result, 0.01)
 
 
 if __name__ == '__main__':
