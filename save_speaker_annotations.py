@@ -1,5 +1,6 @@
 import os
 import torch
+import csv
 
 def frames_to_timestamp(frame_num, fps=25):
     """Convierte número de frame a timestamp en formato HH:MM:SS:FF"""
@@ -20,17 +21,18 @@ def get_confidence_score(score_tensor):
 
 def save_speaker_annotations(args, tracks, pred, min_prob=0.5):
     """
-    Guarda las anotaciones de los hablantes en formato TXT
+    Guarda las anotaciones de los hablantes en formato TXT y CSV
     args: argumentos del programa
     tracks: información de tracking de caras
     pred: predicciones del modelo
     """
-    # Crear directorio para el archivo TXT
+    # Crear directorio para los archivos
     txt_dir = os.path.join(args.savePath, 'asd_txt')
     os.makedirs(txt_dir, exist_ok=True)
     
-    # Archivo de salida
-    output_file = os.path.join(txt_dir, 'speaker_annotations.txt')
+    # Archivos de salida
+    output_txt = os.path.join(txt_dir, 'speaker_annotations.txt')
+    output_csv = os.path.join(txt_dir, 'speaker_annotations.csv')
     
     # Procesar tracks y predicciones
     annotations = []
@@ -73,11 +75,31 @@ def save_speaker_annotations(args, tracks, pred, min_prob=0.5):
     # Ordenar por tiempo de inicio
     annotations.sort(key=lambda x: x['start_frame'])
     
-    # Escribir archivo
-    with open(output_file, 'w') as f:
+    # Escribir archivo TXT
+    with open(output_txt, 'w') as f:
         for ann in annotations:
             start_time = frames_to_timestamp(ann['start_frame'])
             end_time = frames_to_timestamp(ann['end_frame'])
             
             f.write(f"Speaker {ann['speaker']} - {ann['confidence']:.2f}\n")
             f.write(f"{start_time} --> {end_time}\n\n")
+    
+    # Escribir archivo CSV
+    with open(output_csv, 'w', newline='') as f:
+        writer = csv.writer(f)
+        # Escribir encabezados
+        writer.writerow(['Speaker', 'Start_Frame', 'End_Frame', 'Start_Time', 'End_Time', 'Confidence'])
+        
+        # Escribir datos
+        for ann in annotations:
+            start_time = frames_to_timestamp(ann['start_frame'])
+            end_time = frames_to_timestamp(ann['end_frame'])
+            
+            writer.writerow([
+                f"Speaker {ann['speaker']}", 
+                ann['start_frame'],
+                ann['end_frame'],
+                start_time,
+                end_time,
+                f"{ann['confidence']:.2f}"
+            ])

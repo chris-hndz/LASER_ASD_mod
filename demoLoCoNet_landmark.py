@@ -636,7 +636,7 @@ def main():
     visualization(args, result, allTracks)
     
     # Añadir esta línea:
-    save_speaker_annotations(args, allTracks, result, 0.01)
+    save_speaker_annotations(args, allTracks, result, -2.01)
 
 
 if __name__ == '__main__':
