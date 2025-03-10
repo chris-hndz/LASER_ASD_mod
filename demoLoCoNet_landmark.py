@@ -39,6 +39,7 @@ import numpy as np
 
 from utils.tools import *
 from dlhammer.dlhammer import bootstrap
+from utils.monitor_resources import ResourceMonitor
 
 from save_speaker_annotations import save_speaker_annotations
 
@@ -545,98 +546,104 @@ def main():
     cfg.__getitem__ = lambda self, key: cfg_dict[key]
 
     warnings.filterwarnings("ignore")
-
-    # Extract video
-    args.videoFilePath = os.path.join(args.pyaviPath, args.videoName + ".avi")
-    # If duration did not set, extract the whole video, otherwise extract the video from 'args.start' to 'args.start + args.duration'
-    if args.duration == 0:
-        command = ("ffmpeg -y -i %s -qscale:v 2 -threads %d -async 1 -r 25 %s -loglevel panic" %
-                   (args.videoPath, args.nDataLoaderThread, args.videoFilePath))
-    else:
-        command = ("ffmpeg -y -i %s -qscale:v 2 -threads %d -ss %.3f -to %.3f -async 1 -r 25 %s -loglevel panic" %
-                   (args.videoPath, args.nDataLoaderThread, args.start, args.start + args.duration, args.videoFilePath))
-    subprocess.call(command, shell=True, stdout=None)
-    sys.stderr.write(time.strftime("%Y-%m-%d %H:%M:%S") +
-                     " Extract the video and save in %s \r\n" % (args.videoFilePath))
     
-    args.videoFilePath1 = os.path.join(args.pyaviPath, args.audioName + ".avi")
-    # If duration did not set, extract the whole video, otherwise extract the video from 'args.start' to 'args.start + args.duration'
-    if args.duration == 0:
-        command = ("ffmpeg -y -i %s -qscale:v 2 -threads %d -async 1 -r 25 %s -loglevel panic" %
-                   (args.audioPath, args.nDataLoaderThread, args.videoFilePath1))
-    else:
-        command = ("ffmpeg -y -i %s -qscale:v 2 -threads %d -ss %.3f -to %.3f -async 1 -r 25 %s -loglevel panic" %
-                   (args.audioPath, args.nDataLoaderThread, args.start, args.start + args.duration, args.videoFilePath1))
-    subprocess.call(command, shell=True, stdout=None)
-    sys.stderr.write(time.strftime("%Y-%m-%d %H:%M:%S") +
-                     " Extract the video and save in %s \r\n" % (args.videoFilePath1))
+    # Iniciar el monitor de recursos
+    resource_monitor = ResourceMonitor(args.savePath, args.videoName)
+    resource_monitor.start()
 
-    # Extract audio
-    # args.audioFilePath = os.path.join(args.pyaviPath, 'audio.wav')
-    # command = (
-    #     "ffmpeg -y -i %s -ss %f -to %f -qscale:a 0 -ac 1 -vn -threads %d -ar 16000 %s -loglevel panic"
-    #     % (args.videoFilePath1, 0, 18, args.nDataLoaderThread, args.audioFilePath)
-    # )
-    args.audioFilePath = os.path.join(args.pyaviPath, 'audio.wav')
-    command = ("ffmpeg -y -i %s -qscale:a 0 -ac 1 -vn -threads %d -ar 16000 %s -loglevel panic" %
-               (args.videoFilePath1, args.nDataLoaderThread, args.audioFilePath))
-    subprocess.call(command, shell=True, stdout=None)
-    sys.stderr.write(time.strftime("%Y-%m-%d %H:%M:%S") +
-                     " Extract the audio and save in %s \r\n" % (args.audioFilePath))
+    try:
+        # Extract video
+        args.videoFilePath = os.path.join(args.pyaviPath, args.videoName + ".avi")
+        # If duration did not set, extract the whole video, otherwise extract the video from 'args.start' to 'args.start + args.duration'
+        if args.duration == 0:
+            command = ("ffmpeg -y -i %s -qscale:v 2 -threads %d -async 1 -r 25 %s -loglevel panic" %
+                      (args.videoPath, args.nDataLoaderThread, args.videoFilePath))
+        else:
+            command = ("ffmpeg -y -i %s -qscale:v 2 -threads %d -ss %.3f -to %.3f -async 1 -r 25 %s -loglevel panic" %
+                      (args.videoPath, args.nDataLoaderThread, args.start, args.start + args.duration, args.videoFilePath))
+        subprocess.call(command, shell=True, stdout=None)
+        sys.stderr.write(time.strftime("%Y-%m-%d %H:%M:%S") +
+                         " Extract the video and save in %s \r\n" % (args.videoFilePath))
+        
+        args.videoFilePath1 = os.path.join(args.pyaviPath, args.audioName + ".avi")
+        # If duration did not set, extract the whole video, otherwise extract the video from 'args.start' to 'args.start + args.duration'
+        if args.duration == 0:
+            command = ("ffmpeg -y -i %s -qscale:v 2 -threads %d -async 1 -r 25 %s -loglevel panic" %
+                      (args.audioPath, args.nDataLoaderThread, args.videoFilePath1))
+        else:
+            command = ("ffmpeg -y -i %s -qscale:v 2 -threads %d -ss %.3f -to %.3f -async 1 -r 25 %s -loglevel panic" %
+                      (args.audioPath, args.nDataLoaderThread, args.start, args.start + args.duration, args.videoFilePath1))
+        subprocess.call(command, shell=True, stdout=None)
+        sys.stderr.write(time.strftime("%Y-%m-%d %H:%M:%S") +
+                         " Extract the video and save in %s \r\n" % (args.videoFilePath1))
 
-    audio = AudioSegment.from_wav(args.audioFilePath)
+        # Extract audio
+        args.audioFilePath = os.path.join(args.pyaviPath, 'audio.wav')
+        command = ("ffmpeg -y -i %s -qscale:a 0 -ac 1 -vn -threads %d -ar 16000 %s -loglevel panic" %
+                  (args.videoFilePath1, args.nDataLoaderThread, args.audioFilePath))
+        subprocess.call(command, shell=True, stdout=None)
+        sys.stderr.write(time.strftime("%Y-%m-%d %H:%M:%S") +
+                         " Extract the audio and save in %s \r\n" % (args.audioFilePath))
 
-    shift_ms = 0
-    swap = False
-    if shift_ms > 0:
-        # Delay the audio by adding silence at the start
-        silence = AudioSegment.silent(duration=shift_ms)
-        shifted_audio = silence + audio
-        shifted_audio = shifted_audio[:len(audio)]  # Trim to match original length
-        shifted_audio.export(args.audioFilePath, format="wav")
-    elif swap:
-        l, r = 0, len(audio)
-        mid = (l + r) // 2
-        shifted_audio = audio[mid:] + audio[:mid]
-        shifted_audio.export(args.audioFilePath, format="wav")
+        audio = AudioSegment.from_wav(args.audioFilePath)
 
-    # Extract the video frames
-    command = ("ffmpeg -y -i %s -qscale:v 2 -threads %d -f image2 %s -loglevel panic" %
-               (args.videoFilePath, args.nDataLoaderThread, os.path.join(args.pyframesPath, '%06d.jpg')))
-    subprocess.call(command, shell=True, stdout=None)
-    sys.stderr.write(time.strftime("%Y-%m-%d %H:%M:%S") +
-                     " Extract the frames and save in %s \r\n" % (args.pyframesPath))
+        shift_ms = 0
+        swap = False
+        if shift_ms > 0:
+            # Delay the audio by adding silence at the start
+            silence = AudioSegment.silent(duration=shift_ms)
+            shifted_audio = silence + audio
+            shifted_audio = shifted_audio[:len(audio)]  # Trim to match original length
+            shifted_audio.export(args.audioFilePath, format="wav")
+        elif swap:
+            l, r = 0, len(audio)
+            mid = (l + r) // 2
+            shifted_audio = audio[mid:] + audio[:mid]
+            shifted_audio.export(args.audioFilePath, format="wav")
 
-    # Scene detection for the video frames
-    scene = scene_detect(args)
-    sys.stderr.write(time.strftime("%Y-%m-%d %H:%M:%S") +
-                     " Scene detection and save in %s \r\n" % (args.pyworkPath))
+        # Extract the video frames
+        command = ("ffmpeg -y -i %s -qscale:v 2 -threads %d -f image2 %s -loglevel panic" %
+                  (args.videoFilePath, args.nDataLoaderThread, os.path.join(args.pyframesPath, '%06d.jpg')))
+        subprocess.call(command, shell=True, stdout=None)
+        sys.stderr.write(time.strftime("%Y-%m-%d %H:%M:%S") +
+                         " Extract the frames and save in %s \r\n" % (args.pyframesPath))
 
-    # Face detection for the video frames
-    faces = inference_video(args)
-    sys.stderr.write(time.strftime("%Y-%m-%d %H:%M:%S") +
-                     " Face detection and save in %s \r\n" % (args.pyworkPath))
+        # Scene detection for the video frames
+        scene = scene_detect(args)
+        sys.stderr.write(time.strftime("%Y-%m-%d %H:%M:%S") +
+                         " Scene detection and save in %s \r\n" % (args.pyworkPath))
 
-    # Face tracking
-    allTracks = []
-    for shot in scene:
-        # Discard the shot frames less than minTrack frames
-        if shot[1].frame_num - shot[0].frame_num >= args.minTrack:
-            # 'frames' to present this tracks' timestep, 'bbox' presents the location of the faces
-            allTracks.extend(track_shot(
-                args, faces[shot[0].frame_num:shot[1].frame_num]))
-    sys.stderr.write(time.strftime("%Y-%m-%d %H:%M:%S") +
-                     " Face track and detected %d tracks \r\n" % len(allTracks))
+        # Face detection for the video frames
+        faces = inference_video(args)
+        sys.stderr.write(time.strftime("%Y-%m-%d %H:%M:%S") +
+                         " Face detection and save in %s \r\n" % (args.pyworkPath))
 
-    visual_feature, audio_feature = prepare_input(args, allTracks)
+        # Face tracking
+        allTracks = []
+        for shot in scene:
+            # Discard the shot frames less than minTrack frames
+            if shot[1].frame_num - shot[0].frame_num >= args.minTrack:
+                # 'frames' to present this tracks' timestep, 'bbox' presents the location of the faces
+                allTracks.extend(track_shot(
+                    args, faces[shot[0].frame_num:shot[1].frame_num]))
+        sys.stderr.write(time.strftime("%Y-%m-%d %H:%M:%S") +
+                         " Face track and detected %d tracks \r\n" % len(allTracks))
 
-    result = inference(args, cfg, visual_feature,
-                       audio_feature, lenTracks=len(allTracks))
+        visual_feature, audio_feature = prepare_input(args, allTracks)
 
-    visualization(args, result, allTracks)
-    
-    # Añadir esta línea:
-    save_speaker_annotations(args, allTracks, result, -2.01)
+        result = inference(args, cfg, visual_feature,
+                          audio_feature, lenTracks=len(allTracks))
+
+        visualization(args, result, allTracks)
+        
+        # Añadir esta línea:
+        save_speaker_annotations(args, allTracks, result, -2.01)
+        
+    finally:
+        # Detener el monitoreo de recursos al finalizar, independientemente del resultado
+        csv_path = resource_monitor.stop()
+        if csv_path:
+            print(f"Monitoreo de recursos finalizado. Datos guardados en: {csv_path}")
 
 
 if __name__ == '__main__':
